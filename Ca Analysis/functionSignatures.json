@@ -1,0 +1,42 @@
+{
+"addpath":
+{
+	"setsAns":false,
+	"inputs":
+	[
+		{"name":"folderName", "kind":"required", "type":"folderpath", "multiplicity":"append"},
+		{"name":"position", "kind":"optional", "type":["char", "choices={'-begin','-end'}"], "default":"'-begin'"},
+		{"name":"frozen", "kind":"optional", "type":["char", "choices={'-frozen'}"], "platform":["win64"]}
+	],
+	"outputs":
+	[
+		{"name":"oldpath", "type":"char"}
+	]
+},
+"preprocess_2P":
+{
+    "setsAns":false,
+    "inputs":
+    [
+        {"name":"folderName", "kind":"required", "type":"folderpath", "multiplicity":"append"},
+		{"name":"position", "kind":"optional", "type":["char", "choices={'-begin','-end'}"], "default":"'-begin'"}    ]
+
+},
+"CaAnalysis":
+{
+    "setsAns":false,
+    "inputs":
+    [
+        {"name":"folderName", "kind":"required", "type":"folderpath", "multiplicity":"append"},
+		{"name":"position", "kind":"optional", "type":["char", "choices={'-begin','-end'}"], "default":"'-begin'"}    ]
+
+},
+"readTifStack":
+{
+    "inputs":
+	[
+		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
+	]
+
+}
+}
