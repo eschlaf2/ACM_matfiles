@@ -1,0 +1,28 @@
+{
+"POC_register":
+{
+	"inputs":
+	[
+		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
+	]
+	
+},
+
+"readTifStack":
+{
+    "inputs":
+	[
+		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
+	]
+
+},
+"concatFiles":
+{
+    "inputs":
+	[
+		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
+	]
+
+}
+
+}
