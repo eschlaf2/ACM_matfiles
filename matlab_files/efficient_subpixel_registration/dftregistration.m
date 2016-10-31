@@ -91,7 +91,6 @@ elseif usfac == 1
     col_shift = Nc(col_shift);
 elseif usfac > 1
     % Start with usfac == 2
-%     CC = ifft2(FTpad(buf1ft.*conj(buf2ft),[2*nr,2*nc]));
     CC = ifft2(FTpad(buf1ft.*conj(buf2ft),[2*nr,2*nc]));
     CCabs = abs(CC);
     [row_shift, col_shift] = find(CCabs == max(CCabs(:)),1,'first');
