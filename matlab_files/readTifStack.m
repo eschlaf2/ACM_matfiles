@@ -1,4 +1,4 @@
-function [finalImage] = readTifStack(filename)
+function [im] = readTifStack(filename)
 % reads in a .tif stack
 
 N = length(imfinfo(filename));
