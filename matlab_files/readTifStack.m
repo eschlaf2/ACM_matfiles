@@ -1,22 +1,11 @@
-function [finalImage] = readTifStack(tifIn)
+function [finalImage] = readTifStack(filename)
 % reads in a .tif stack
 
-infoIm = imfinfo(tifIn);
-w = infoIm(1).Width;
-h = infoIm(1).Height;
-n = length(infoIm);
+N = length(imfinfo(filename));
+t = Tiff(filename);
 
-% t = Tiff(tifIn,'r');
-% offsets = t.TagID.SubIFD;
-
-finalImage = zeros(w, h, n, 'uint16');
-% f = @(i) im2int16(imread(tifIn,'index',i));
-% finalImage = arrayfun(f ,(1:n),'uniformoutput','false');
-for i = 1:n
-%     t.setSubDirectory(offsets(i));
-%     finalImage(:,:,i) = t.read();
-    finalImage(:,:,i) = im2int16(imread(tifIn,'index',i));
+im = repmat(t.read(),1,1,N);
+for i = 2:N
+    t.nextDirectory;
+    im(:,:,i) = t.read();
 end
-
-end
-

@@ -1,14 +1,21 @@
-% function [output, img_reg] = POC_register(tif_img)
-
+function [output, img_reg, orig_reg] = POC_register(img)
+% img can be a tif file or a 3D array variable
 
 % Parameters
-SMOOTH = 2;
-USFAC = 10; % upscale factor (only 2 in thesis - Sicairos says 10 is best)
+SMOOTH = 1;
+NORM = true;
+USFAC = 10; % upscale factor (Sicairos says 10 is best)
 
-% display('Reading TIFF stack')
-% img = readTifStack(tif_img);
+display('Reading TIFF stack')
+if ischar(img)
+    img = readTifStack(img);
+end
+
 [signal, ~] = deinterleave(img);
+signal = single(signal);
 sig_orig = signal; % Register original as well as smoothed and normed
+clear tif_mat
+numsamp = size(signal,3);
 
 % remove oddballs (mean of surrounding stacks
 cor = arrayfun(@(i) mean(min(corrcoef(single(reshape(...
@@ -16,31 +23,37 @@ cor = arrayfun(@(i) mean(min(corrcoef(single(reshape(...
     [],1))))),(1:size(signal,3)-1));
 bad_cor = find(cor < mean(cor) - 2*std(cor));
 if ~isempty(bad_cor)
-    signal(:,:,bad_cor) = ...
-        mean(cat(3,signal(:,:,max(bad_cor-1,1)),...
-        signal(:,:,min(bad_cor+1,numel(cor)))),3);
+    mean_fun = @(i) mean(cat(3,signal(:,:,(i==1)*2+(i~=1)*(i-1)), ...
+        signal(:,:,(i==1)*3 + ...
+        (i==numsamp)*(numsamp-2)+(1<i & numsamp>i)*(i+1))),3);
+    for ind=bad_cor
+        signal(:,:,ind) = mean_fun(ind);
+    end
 end
 
 % Smooth with gaussian
 for i=1:SMOOTH
-    display('Smoothing image')
+    if i == 1
+        display('Smoothing')
+    end
     signal = smooth3(signal,'gaussian');
 end
 
 % normalize (mean=0, std = 1)
-signal = single(signal);
-m = repmat(mean(mean(signal,1),2),size(signal,1),size(signal,2),1);
-sd_fun = @(i) std(reshape(signal(:,:,i),[],1));
-sd = repmat(reshape(arrayfun(sd_fun,(1:size(signal,3))),1,1,[]),...
-    size(signal,1),size(signal,2),1);
-signal = (signal-m)./sd;
+if NORM
+    display('Normalizing')
+    signal = single(signal);
+    m = repmat(mean(mean(signal,1),2),size(signal,1),size(signal,2),1);
+    sd_fun = @(i) std(reshape(signal(:,:,i),[],1));
+    sd = repmat(reshape(arrayfun(sd_fun,(1:size(signal,3))),1,1,[]),...
+        size(signal,1),size(signal,2),1);
+    signal = (signal-m)./sd;
+end
 
 base = z_project(single(signal(:,:,5:35)));
 
-numsamp = size(signal,3);
-
 output = zeros(4,numsamp);
-img_reg = zeros(size(signal),'uint16');
+img_reg = zeros(size(signal),'single');
 display('Starting registration')
 orig_reg = zeros(size(sig_orig));
 [nr,nc,~]=size(orig_reg);
@@ -60,4 +73,4 @@ for i  = 1:numsamp
     orig_reg(:,:,i) = abs(ifft2(orig_temp));
 end
 display('Done')
-plot(output(1,:))
+% plot(output(1,:))

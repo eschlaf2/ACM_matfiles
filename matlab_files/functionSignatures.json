@@ -16,6 +16,14 @@
 	]
 
 },
+"deinterleaveTif":
+{
+    "inputs":
+	[
+		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
+	]
+
+},
 "concatFiles":
 {
     "inputs":
