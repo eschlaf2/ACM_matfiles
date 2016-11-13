@@ -1,40 +1,33 @@
-function [] = deinterleaveTif(filename,tot_chan)
-
+function [] = deinterleaveTif(filename,chan_names)
+% separates .tif file into separate channels and saves results to folders
+% corresponding to each channel
 
 [path,name,ext] = fileparts(which(filename));
 filename = [path filesep name ext];
-setenv('path',path);
+% setenv('path',path);
 setenv('filename',filename);
+N = length(imfinfo(filename));
+tot_chan = numel(chan_names);
 
-i=0;
-while ~isempty(dir(sprintf('tmp%d*',i)))
-    i=i+1;
-end
-pfx = sprintf('tmp%d',i);
-setenv('pfx',pfx);
-!tiffsplit $filename $pfx
-
-N = length(dir([pfx '*.tif']));
-assert(N<17576,'File has too many frames (max is 17576).')
-
-for chan = 1:tot_chan
-    file_inds = '';
-    for i = chan:tot_chan:N
-        o1 = char(97+floor((i-1)/676));
-        o2 = char(97+mod(floor((i-1)/26),26));
-        o3 = char(97+mod(i-1,26));
-        file_inds = [file_inds sprintf(' %s%s%s%s.tif,',...
-            pfx, o1, o2, o3)];
+for i = 1:tot_chan
+    fname = sprintf('%s%s%s',path,filesep,chan_names{i});
+    outname = [fname filesep name '_' chan_names{i} ext];
+    if ~exist(fname,'dir')
+        mkdir(fname);
     end
-
-    file_inds = file_inds(2:end-1);
-%     if i > tot_chan
-%         file_inds = ['{' file_inds '}'];
-%     end
-
-%     setenv('tfcp',[pfx file_inds '.tif']);
-    setenv('outname',[name '_ch' num2str(chan) '.tif']);
-    setenv('cpfiles',file_inds);
-    !tiffcp $cpfiles $outname
+    inds = sprintf('%d,',(i:tot_chan:N));
+    inds = inds(1:end-1);
+    setenv('outname',outname);
+    setenv('inds',inds);
+    if ~exist(outname,'file')
+        if i == 1
+            display(sprintf('Deinterleaving %s',name));
+        end
+        if i == tot_chan % only save one pixel of the trigger channel
+            !tiffcrop -N $inds -X 1 -Y 1 $filename $outname
+        else
+            !tiffcrop -N $inds $filename $outname
+        end
+    end
 end
-!rm -rf $pfx*.tif
+

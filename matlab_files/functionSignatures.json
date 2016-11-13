@@ -31,6 +31,15 @@
 		{"name":"filename", "kind":"required", "type":[["filepath=*.tif"], ["char"]]}
 	]
 
+},
+"tif2P2mat":
+{
+    "setsAns":false,
+    "inputs":
+    [
+        {"name":"folderName", "kind":"required", "type":"folderpath", "multiplicity":"append"},
+		{"name":"position", "kind":"optional", "type":["char", "choices={'-begin','-end'}"], "default":"'-begin'"}    ]
+
 }
 
 }
