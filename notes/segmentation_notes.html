@@ -1,0 +1,131 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>segmentation_notes</title><meta name="generator" content="MATLAB 9.0"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2016-11-14"><meta name="DC.source" content="segmentation_notes.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; } 
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">Registered results</a></li><li><a href="#5">Filtering VR cells</a></li><li><a href="#6">Next Steps</a></li><li><a href="#7">Thinking</a></li></ul></div><h2>Registered results<a name="1"></a></h2><p>run load seg_compareT1vT2 to get variables (hopefully this works) tif2P2mat will automatically preprocess (deinterleave, register, sort) raw data and put it into a subfolder called Results.</p><pre class="codeinput">im1 = readTifStack(<span class="string">'/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/WWY_080116_3_trial01.tif'</span>);
+im2 = readTifStack(<span class="string">'/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/WWY_080116_3_trial02.tif'</span>);<span class="comment">%% Segmentation results</span>
+</pre><p>play these using <tt>viewTifvid(imx)</tt></p><p>Running these in <tt>CaImSegmentation</tt> gives the following correlation maps. Ran with maxNeurons = 100 and this found 94. **Try to find more cells (300 maybe??)</p><p>Also, these are axons. by running the updates without spatial constraints we might get better segmentation of axons (see dendritic segmentation in paper).</p><pre class="codeinput">open(<span class="string">'CnT1vCnT2.fig'</span>)
+</pre><img vspace="5" hspace="5" src="segmentation_notes_01.png" alt=""> <p>The rois found are nearly the same.</p><pre class="codeinput">open(<span class="string">'roisT1vT2.fig'</span>);
+</pre><img vspace="5" hspace="5" src="segmentation_notes_02.png" alt=""> <p>The numbering is weird. Can try running one long trial or just use the rois found from the first run.</p><p>Signals from the T1 with correlation between trigger signal and DFF:</p><pre class="codeinput">open <span class="string">CaSignalT1.fig</span>
+</pre><img vspace="5" hspace="5" src="segmentation_notes_03.png" alt=""> <h2>Filtering VR cells<a name="5"></a></h2><p>First thought is to do like Jerry and look at max correlation between trigger signal and DFF - most of the correlations are around 120 (frames), especially the highest correlations which seems strange.</p><p>Ideas:</p><div><ul><li>This is only a single trial - look at median</li><li>... dunno - axonal data is different?</li></ul></div><pre class="codeinput">open <span class="string">locOfMaxCorr.fig</span>
+</pre><img vspace="5" hspace="5" src="segmentation_notes_04.png" alt=""> <h2>Next Steps<a name="6"></a></h2><p>OS/DS polar plots of each cell</p><h2>Thinking<a name="7"></a></h2><p>Analyze by trial or median of trials...</p><p class="footer"><br><a href="http://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2016a</a><br></p></div><!--
+##### SOURCE BEGIN #####
+%% Registered results
+% run load seg_compareT1vT2 to get variables (hopefully this works)
+% tif2P2mat will automatically preprocess (deinterleave, register,
+% sort) raw data and put it into a subfolder called Results. 
+
+im1 = readTifStack('/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/WWY_080116_3_trial01.tif');
+im2 = readTifStack('/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/WWY_080116_3_trial02.tif');%% Segmentation results
+
+%%
+% play these using |viewTifvid(imx)|
+% 
+% Running these in |CaImSegmentation|
+% gives the following correlation maps.
+% Ran with maxNeurons = 100 and this found 94. **Try to find more cells
+% (300 maybe??)
+%
+% Also, these are axons. by running the updates without spatial constraints
+% we might get better segmentation of axons (see dendritic segmentation in
+% paper).
+
+open('CnT1vCnT2.fig')
+
+%%
+% The rois found are nearly the same. 
+
+open('roisT1vT2.fig');
+
+%%
+% The numbering is weird. Can try running one long trial or just use the
+% rois found from the first run.
+%
+% Signals from the T1 with correlation between trigger signal and DFF:
+
+open CaSignalT1.fig
+
+%% Filtering VR cells
+% First thought is to do like Jerry and look at max correlation between
+% trigger signal and DFF - most of the correlations are around 120
+% (frames), especially the highest correlations which seems strange. 
+%
+% Ideas:
+% 
+% * This is only a single trial - look at median
+% * ... dunno - axonal data is different?
+
+open locOfMaxCorr.fig
+%% Next Steps
+% OS/DS
+% polar plots of each cell
+
+%% Thinking
+% Analyze by trial or median of trials...
+
+##### SOURCE END #####
+--></body></html>
