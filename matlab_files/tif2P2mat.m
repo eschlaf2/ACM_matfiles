@@ -95,7 +95,7 @@ for i = 1:length(matfiles)
     end
     order{i} = reshape(tmp(1:N), numOrientations,[]);
 end
-order = cat(2,order{:});
+[~,order] = sort(cat(2,order{:}));
 csvwrite([path 'Results' filesep basename '_order.txt'],order);
 
 %% Deinterleave
