@@ -123,14 +123,16 @@ end
 trig_col = colors{end};
 parfor i = 1:numTrials
     display(sprintf('Processing trial %d',i))
-    img = cell(numOrientations);
+    img = cell(numOrientations,1);
     trigs = img; 
     for j = 1:numOrientations
         display(sprintf('Starting trial %d, subtrial %d',i,j))
         file=imgfiles(j,i);
         img{j} = readTifStack([tifpath filesep file.name]);
+        
         trigs{j} = squeeze(readTifStack(...
             [path trig_col filesep trigfiles(j,i).name]));
+        img{j} = img{j}(:,:,2:end);trigs{j} = trigs{j}(:,:,2:end);
         trigs{j} = trigs{j}>0;        
     end
     img = cat(3,img{:});
