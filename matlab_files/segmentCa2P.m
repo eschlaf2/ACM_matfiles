@@ -1,4 +1,4 @@
-% function [] = segmentCa2p(foldername,maxNeurons,estNeuronSize,savefile,options)
+function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options)
 
 if ~exist('savefile','var') || isempty(savefile)
     savefile = ['/projectnb/cruzmartinlab/emily/segProg' date()];
@@ -85,15 +85,8 @@ SpatMap = cell(N,1); CaSignal = SpatMap; Spikes = SpatMap; corrIm = SpatMap;
 stats = SpatMap;
 
 for i = 1:N
-    if i==1
-        Y = im(:,:,:,1);
-        Y = Y - min(Y(:)); 
-        if ~isa(Y,'double');    Y = double(Y);  end         % convert to double
-        [~,Y] = preprocess_data(Y,p);
-        [~,~,~,~,ROI_list] = greedyROI(Y, maxNeurons, options);
-    end
     [SpatMap{i}, CaSignal{i}, Spikes{i}, ~,~, corrIm{i}, stats{i},~] = ...
-        CaImSegmentation(im(:,:,:,i),maxNeurons,estNeuronSize, ROI_list);
+        CaImSegmentation(im(:,:,:,i),maxNeurons,estNeuronSize);
 end
 
 %% Testing
@@ -101,7 +94,7 @@ end
 
 try savefig(gcf,savefile); catch ME; end
 close all;
-save(savefile);
+try save(savefile); catch MEsave; savefile('sementationOutput'); end
 return
 
 %% Save point (with SMALLRUN = true)

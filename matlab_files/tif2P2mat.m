@@ -99,9 +99,12 @@ end
 csvwrite([path 'Results' filesep basename '_order.txt'],order);
 
 %% Deinterleave
-display('Deinterleaving TIFF files')
-for file = tifFiles(logical(errFiles))'
-    deinterleaveTif([path file.name],colors);
+% Assumes already deinterleaved if all color folders exist
+if max(arrayfun(@(i) ~exist([path colors{i}],'dir'),1:numel(colors)))
+    display('Deinterleaving TIFF files')
+    for file = tifFiles(logical(errFiles))'
+        deinterleaveTif([path file.name],colors);
+    end
 end
 
 %% Reshape file lists to reorder by trial
@@ -133,7 +136,7 @@ parfor i = 1:numTrials
         
         trigs{j} = squeeze(readTifStack(...
             [path trig_col filesep trigfiles(j,i).name]));
-        img{j} = img{j}(:,:,2:end);trigs{j} = trigs{j}(:,:,2:end);
+        img{j} = img{j}(:,:,2:end);trigs{j} = trigs{j}(2:end);
         trigs{j} = trigs{j}>0;        
     end
     img = cat(3,img{:});
