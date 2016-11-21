@@ -1,5 +1,6 @@
 #!/bin/csh
 #$ -pe omp 8
+#$ -N qsub_output
 #$ -m ea 
 #$ -v HOMEDIR=/projectnb/cruzmartinlab/emily/
 #$ -v datapath=/projectnb/cruzmartinlab/lab_data/WWY_080116_3/cell-bodies-1Hz/

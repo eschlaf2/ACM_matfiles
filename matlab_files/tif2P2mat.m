@@ -96,6 +96,7 @@ for i = 1:length(matfiles)
     order{i} = reshape(tmp(1:N), numOrientations,[]);
 end
 order = cat(2,order{:});
+csvwrite([path 'Results' filesep basename '_order.txt'],order);
 
 %% Deinterleave
 display('Deinterleaving TIFF files')
