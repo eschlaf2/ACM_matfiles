@@ -1,4 +1,4 @@
-function [] = tif2P2mat(foldername,chan,numOrientations,base,regFiles)
+function [outpath] = tif2P2mat(foldername,chan,numOrientations,base,regFiles)
 
 % Make input parser at some point...
 
@@ -30,8 +30,9 @@ end
 %% get .mat data files with info from photo diode and .tif files with images
 matfiles = dir([path '*.mat']);
 tifFiles = dir([path '*.tif']);
-t = Tiff([path filesep tifFiles(1).name]);
+t = Tiff([path tifFiles(1).name]);
 tifinfo = t.getTag('ImageDescription');
+t.close;
 
 warning('off','MATLAB:m_missing_variable_or_function');
 warning('off','MATLAB:UndefinedFunction');
@@ -76,16 +77,23 @@ for i = 1:length(matfiles)
     Nend = strsplit(fnameSplit{2},'_');
     Nend = str2double(Nend{end-1});
     N = Nend - Nstart + 1;
-%     [tmp,N] = reorder2P(data,N);
-    tmp = reorder2Pv2(data,numOrientations,N/numOrientations);
-    tmp = tmp(1:floor(N/numOrientations)*numOrientations);
-    if mod(N,numOrientations)
+    [tmp,Nnew] = reorder2P(data,N);
+%     tmp = reorder2Pv2(data,numOrientations,N);
+%     tmp = tmp(1:floor(N/numOrientations)*numOrientations);
+    if mod(Nnew,numOrientations)
         inds = N0:N0+N-1; % indices of errFiles to update
-        inds = inds(end-mod(N,numOrientations)+1:end);
+        inds = inds(end-mod(Nnew,numOrientations)+1:end);
         errFiles(inds) = 0;
     end
     N0 = N0+N;
-    order{i} = reshape(tmp, numOrientations,[]);
+    N = floor(Nnew/numOrientations)*numOrientations;
+    correct = meshgrid((0:numOrientations-1),(1:floor(Nnew/numOrientations)));
+    check = min(unique(sort(tmp(1:N)) == correct(:)));
+%     check = min(min(diff(sort(reshape(tmp(1:N),numOrientations,[])))))==1;
+    if ~check
+        error('Error in ordering')
+    end
+    order{i} = reshape(tmp(1:N), numOrientations,[]);
 end
 order = cat(2,order{:});
 
@@ -164,6 +172,7 @@ parfor i = 1:numTrials
     
 end
 writeTif(base,[path 'Results' filesep 'base']);
+outpath = [path 'Results' filesep];
 display('Done')
     
 

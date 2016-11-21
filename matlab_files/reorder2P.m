@@ -1,17 +1,20 @@
 function [order,N] = reorder2P(data,N)
 
-k=10;
-trigs = medfilt1(data.TrigCh(data.sampleRate:end),k);
+k=100;
+trigs = medfilt1(data.TrigCh,k);
 trigs = trigs>.5;
 % trigs(:) = 0; 
 % trigs(hi_inds) = 1;
 trig1 = find(data.PhotCh(:)>4,1);
 
-trigStarts = find(diff(trigs) < 0)+data.sampleRate;
+trigStarts = find(diff(trigs) < 0);
 
-if trigStarts(1) - trig1 > 0
+if trigStarts(1) > trig1
     warning('First trigger missing. Correcting.')
     trigStarts = [trig1; trigStarts(:)];
+end
+if trigStarts(1) < data.sampleRate
+    trigStarts = trigStarts(2:end);
 end
 if numel(trigStarts) ~= N
     newN = min(numel(trigStarts),N);
