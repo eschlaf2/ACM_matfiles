@@ -4,4 +4,4 @@
 *.mat
 *.tif
 */*.gif
-qsub_output.*
+output.*

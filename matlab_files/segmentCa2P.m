@@ -1,4 +1,4 @@
-function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options)
+% function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options)
 
 if ~exist('savefile','var') || isempty(savefile)
     savefile = ['/projectnb/cruzmartinlab/emily/segProg' date()];
@@ -22,7 +22,7 @@ if ~exist('foldername','var');
     foldername = ...
         '/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/';...
 end
-if ~exist('maxNeurons','var')||isempty(maxNeurons); maxNeurons = 300; end
+if ~exist('maxNeurons','var')||isempty(maxNeurons); maxNeurons = 30; end
 if ~exist('estNeuronSize','var')||isempty(estNeuronSize); estNeuronSize = 4; end
 
 %% Load preprocessed images
@@ -30,7 +30,7 @@ display('Loading images')
 wd = pwd; cd(foldername); path = [pwd filesep]; cd(wd);
 trials = dir([path '*trial*.tif']);
 N = length(trials);
-if SMALLRUN; N = min(N,2); end
+if SMALLRUN; N = min(N,3); end
 im = cell(N,1); 
 trigs = im;
 trigFiles = dir([path '*trigs.txt']);
@@ -90,11 +90,23 @@ for i = 1:N
 end
 
 %% Testing
-% Maybe merge components now...
+% Merge components now...
+C = cat(1,CaSignal{:});
+A = cat(2,SpatMap{:});
+nr = size(A,2);
+thr = .3;
+C_corr = corr(full(C(1:nr,:)'));
+    FF1 = triu(C_corr)>= thr;                           % find graph of strongly correlated temporal components
+    
+    A_corr = triu(A(:,1:nr)'*A(:,1:nr));                
+    A_corr(1:nr+1:nr^2) = 0;
+    FF2 = A_corr > 0;                                   % find graph of overlapping spatial components
+    
+    FF3 = and(FF1,FF2); 
 
 try savefig(gcf,savefile); catch ME; end
 close all;
-try save(savefile); catch MEsave; savefile('sementationOutput'); end
+try save(savefile); catch MEsave; savefile('segmentationOutput'); end
 return
 
 %% Save point (with SMALLRUN = true)

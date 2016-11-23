@@ -91,12 +91,13 @@ for i = 1:length(matfiles)
     check = min(unique(sort(tmp(1:N)) == correct(:)));
 %     check = min(min(diff(sort(reshape(tmp(1:N),numOrientations,[])))))==1;
     if ~check
-        error('Error in ordering')
+        error('Error in ordering for trial %d',i)
     end
     order{i} = reshape(tmp(1:N), numOrientations,[]);
 end
+
+csvwrite([path 'Results' filesep basename '_order.txt'],cat(2,order{:}));
 [~,order] = sort(cat(2,order{:}));
-csvwrite([path 'Results' filesep basename '_order.txt'],order);
 
 %% Deinterleave
 % Assumes already deinterleaved if all color folders exist
@@ -117,11 +118,11 @@ tifFiles = reshape(tifFiles, numOrientations,[]);
 
 %%
 numTrials = size(order,2);
-imgfiles = tifFiles(order+1);
-trigfiles = trigFiles(order+1);
+imgfiles = tifFiles(order);
+trigfiles = trigFiles(order);
 if ~exist('base','var')
     base = base_for_registration(...
-        readTifStack([tifpath filesep imgfiles(1,1).name]));
+        readTifStack([tifpath imgfiles(1,1).name]));
 end
 %% Register
 trig_col = colors{end};
