@@ -1,6 +1,6 @@
 % function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options)
 
-runInPatches = true;
+runInPatches = false;
 
 if ~exist('savefile','var') || isempty(savefile)
     savefile = ['/projectnb/cruzmartinlab/emily/segProg' date()];
@@ -16,7 +16,35 @@ if exist([savefile '.mat'],'file')
 end
 SMALLRUN = true;
 IGNORE = false;
-LAGMAX = 60;
+LAGMAX = 30;
+
+%         'd1',d1,'d2',d2,...                         % dimensions of datasets
+if ~exist('foldername','var'); 
+    foldername = ...
+        '/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/';...
+end
+if ~exist('maxNeurons','var')||isempty(maxNeurons); maxNeurons = 100; end
+if ~exist('estNeuronSize','var')||isempty(estNeuronSize); estNeuronSize = 4; end
+tau = estNeuronSize;                   % std of gaussian kernel (size of neuron) - 4 is a good start 
+p = 2;                                % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
+merge_thr = 0.8;   
+if ~exist('options','var') || isempty(options)
+    options = CNMFSetParms(...                      
+        'search_method','ellipse','dist',8,...       % search locations when updating spatial components
+        'deconv_method','constrained_foopsi',...    % activity deconvolution method
+        'ssub', 2,...                            % spatial downsampling factor (default: 1)
+        'tsub', 4,...                            % temporal downsampling factor (default: 1)    
+        'fudge_factor',0.98,...                     % bias correction for AR coefficients
+        'merge_thr',merge_thr,...                    % merging threshold
+        'maxthr',0.1,...                           % threshold of max value below which values are discarded (default: 0.1)
+        'medw',[3,3],...                % size of median filter (default: [3,3])
+        'save_memory', false,...      % process data sequentially to save memory (default: 0)
+        'cluster_pixels',true,...
+        'gSig',tau...
+        );
+    % Data pre-processing
+end
+
 
 if ~IGNORE
 
@@ -32,7 +60,7 @@ display('Loading images')
 wd = pwd; cd(foldername); path = [pwd filesep]; cd(wd);
 resultName = [path 'results.mat'];
 if SMALLRUN; resultName = [path 'resultsSmall.mat']; end
-if ~exist(resultName,'file')
+if true % ~exist(resultName,'file')
     trials = dir([path '*trial*.tif']);
     N = length(trials);
     if SMALLRUN; N = min(N,3); end
@@ -43,6 +71,13 @@ if ~exist(resultName,'file')
         filename = [path trials(i).name];
         im{i} = single(readTifStack(filename));
         trigs{i} = csvread([path trigFiles(i).name]);
+        if i == 1
+            [options.d1, options.d2, ~] = size(im{i});
+            [SpatMap,CaSignal,Spikes,width,height,corrIm,stats,options] = ...
+                CaImSegmentation(im{i},maxNeurons,estNeuronSize,options);
+            try savefig(gcf,savefile); catch ME; end
+%             close all;
+        end
     end
     % [d1,d2,~] = size(im{1});
     % if SMALLRUN
@@ -55,68 +90,31 @@ if ~exist(resultName,'file')
 
     %% Align all trials and subtrials to trigger onsets
     display('Aligning')
-    [im,trigs] = alignTrigs(im,trigs,300,5);
-
-    % Memory map image
-    data = memmap_var(im,resultName,trigs,N);
-    clear im
+    [im,trigs] = alignTrigs(im,trigs,300);
+    save(resultName,'im','trigs','N','SpatMap','-v7.3');
 else
-    data = matfile(resultName,'Writable',true);
-    trigs = data.trigs;
-    N = data.N;
+    load(resultName);
 end
-[d1,d2,T] = size(data,'Y');
+[d1,d2,T] = size(im);
+numRois = size(SpatMap,2);
 
-%% Calculate calcium signal using patches
-display('Segmenting')
-
-% Set parameters
-patchSize = [128,128];
-patches = construct_patches([d1,d2],patchSize); % use defaults for overlap
-neurPerPatch = max(8,maxNeurons/(prod([d1 d2])/prod(patchSize)));
-tau = estNeuronSize;                   % std of gaussian kernel (size of neuron) - 4 is a good start 
-p = 2;                                % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
-merge_thr = 0.8;                       % merging threshold
-% savemem = T>5000;
-savemem = true;
-
-if ~exist('options','var') || isempty(options)
-    options = CNMFSetParms(...                      
-        'd1',d1,'d2',d2,...                         % dimensions of datasets
-        'search_method','ellipse','dist',8,...       % search locations when updating spatial components
-        'deconv_method','constrained_foopsi',...    % activity deconvolution method
-        'ssub', 2,...                            % spatial downsampling factor (default: 1)
-        'tsub', 4,...                            % temporal downsampling factor (default: 1)    
-        'fudge_factor',0.98,...                     % bias correction for AR coefficients
-        'merge_thr',merge_thr,...                    % merging threshold
-        'maxthr',0.1,...                           % threshold of max value below which values are discarded (default: 0.1)
-        'medw',[3,3],...                % size of median filter (default: [3,3])
-        'save_memory', savemem,...      % process data sequentially to save memory (default: 0)
-        'cluster_pixels',true,...
-        'gSig',tau...
-        );
-    % Data pre-processing
+%% Calculate calcium signal using spatial map from trial 1
+display('Getting fluorescence data')
+fluo = zeros(T,numRois);
+im = arrayfun(@(i) medfilt2(im(:,:,i)),(1:T),'uniformoutput',false);
+im = cat(3,im{:});
+imR = reshape(im,d1*d2,T);
+% Maybe do medfilt1 here in time direction...
+for i = 1:numRois
+    fluo(:,i) = smooth(mean(imR(SpatMap(:,i)>0,:),1));
 end
+fluo = reshape(fluo,numRois,[],N);
+baseline = quantile(fluo,.08,2);
+% baseline = median(fluo(repmat(trigs,N,1)==0,:)); % take trigs off as baseline
+dff = abs((fluo - repmat(baseline,1,T/N,1))./repmat(baseline,1,T/N,1));
 
-if runInPatches
-    [SpatMap, ~, CaSignal, ~, Spikes, stats, RESULTS, YrA] = ...
-        run_CNMF_patches(data,neurPerPatch,patches, estNeuronSize, p, options);
-    [SpatMap,CaSignal,Spikes,stats] = ...
-        order_ROIs(SpatMap,CaSignal,Spikes,stats); % order components
-%     contour_threshold = 0.95;                 % amount of energy used for each component to construct contour plot
-    figure;
-    corrIm = reshape(stats.sn,d1,d2);
-    [Coor,json_file] = plot_contours(SpatMap,corrIm,options,1); % contour plot of spatial footprints
-else
-    [SpatMap,CaSignal,Spikes,width,height,corrIm,stats,options] = ...
-        CaImSegmentation(data.Y,maxNeurons,estNeuronSize,options);
-end
-
-%savejson('jmesh',json_file,'filename');        % optional save json file with component coordinates (requires matlab json library)
-
-try savefig(gcf,savefile); catch ME; end
-close all;
-try save(savefile); catch MEsave; save('segmentationOutput'); end
+close all
+try save(savefile,'-v7.3'); catch MEsave; save('segmentationOutput'); end
 % return
 
 %% Save point (with SMALLRUN = true)
@@ -127,59 +125,49 @@ end
 
 %% Filter VR cells
 display('Filtering for VR cells')
-numRois = size(CaSignal,1);
 numOrientations = sum(diff(trigs)==1);
-caMed = median(reshape(full(CaSignal),numRois,[],N),3);
+dffMed = median(dff,3);
 acor = nan(numRois,1); lag = nan(numRois,1);
 for i = 1:numRois
-    [cc, loc] = xcorr(zscore(caMed(i,:)),zscore(trigs),LAGMAX+10);
-%     cc = cc/xcorr(zscore(trigs),0);
+    [cc, loc] = xcorr(zscore(dffMed(i,:)),zscore(trigs),LAGMAX+10);
     [acor(i), mxind] = max((cc));
     lag(i) = loc(mxind);
 end
-vrInds = (lag > 0) & (lag < LAGMAX); % & acor > 0.15;
+vrInds = (lag > 0) & (lag < LAGMAX);
 rois = (1:numRois);
-if sum(vrInds) > 10
-    caMed = caMed(vrInds,:);
-    numRois = sum(vrInds);
-    rois = rois(vrInds);
-    vrInds(~vrInds) = [];
-    contourAll = false;
-%     vrInds = true(numRois,1);
-else
-    numRois = min(numRois,50);
-    caMed = caMed(1:numRois,:);
-    vrInds = vrInds(1:numRois);
-    rois = rois(1:numRois);
-    contourAll = true;
-end
+% if sum(vrInds) > 10
+%     dffMed = dffMed(vrInds,:);
+%     numRois = sum(vrInds);
+%     rois = rois(vrInds);
+%     vrInds(~vrInds) = [];
+%     contourAll = false;
+% %     vrInds = true(numRois,1);
+% else
+%     numRois = min(numRois,50);
+%     dffMed = dffMed(1:numRois,:);
+%     vrInds = vrInds(1:numRois);
+%     rois = rois(1:numRois);
+%     contourAll = true;
+% end
 
 %% Get activity for each orientation
 display('Calculating activity for each orientation')
 % activity = reshape(caMed.*repmat(trigs',numRois,1),...
 %     numRois,[],numOrientations);
 % activity = reshape(caMed(:,trigs==1),numRois,[],numOrientations);
-activity = reshape(CaSignal,117,[],N);
-actStd = std(activity,[],2);
-actStd = 3*repmat(actStd,1,size(activity,2),1);
-activity = double(activity > actStd);
+actStd = std(dff,[],2);
+actStd = 3*repmat(actStd,1,T/N,1);
+activity = double(dff > actStd);
 activity = sum(activity,3);
-activity = reshape(activity,117,[],numOrientations);
 % activity = activity - repmat(3.*std(activity,[],2),1,size(activity,2),1));
 % activity(activity<0) = 0;
 % activity(activity < repmat(3.*std(activity,[],2),1,size(activity,2),1)) = 0;
+activity = reshape(activity,numRois,[],numOrientations);
 activity = squeeze(sum(activity,2));
 % activity = squeeze(sum(reshape(caMed.*repmat(trigs',numRois,1),...
 %     numRois,[],numOrientations),2));
 
 theta = linspace(0,2*pi,numOrientations+1)'; theta = theta(1:end-1);
-
-
-%% Get activity in terms of spikes
-spikeThr = quantile(Spikes(Spikes>0),.25);
-spAct = double(Spikes > spikeThr);
-spAct = reshape(spAct,size(spAct,1),[],N);
-spAct = sum(spAct,3);
 
 %% Get os and ds per Scanziani 2012
 display('Calculating OS and DS')
@@ -209,9 +197,10 @@ scatter(x(vrInds),y(vrInds),'b'); hold off
 title('DS')
 
 h(3) = figure(13); % Polar plots
-m = floor(sqrt(numRois));
-n = ceil(numRois/m);
-for i = 1:numRois
+num2plot = min(numRois,25);
+m = floor(sqrt(num2plot));
+n = ceil(num2plot/m);
+for i = 1:num2plot
     if vrInds(i); s = 'b'; else s = 'r'; end
     subplot(m,n,i)
     polarplot([theta(:); theta(1)], ...
@@ -223,10 +212,10 @@ for i = 1:numRois
 end
 
 h(4) = figure(14); % Ca signal plots
-stackedTraces(zscore(caMed')); hold on;
+stackedTraces(zscore(dffMed')); hold on;
 axis('tight'); yl = get(gca,'ylim'); ymax = ceil(yl(2));
 set(gca,'yticklabels',rois);
-imagesc((1:size(caMed,2)),(0:ymax),repmat(trigs',ceil(ymax)+1,1),'alphadata',.2); 
+imagesc((1:size(dffMed,2)),(0:ymax),repmat(trigs',ceil(ymax)+1,1),'alphadata',.2); 
 ylim(yl); 
 colormap(gray); hold off
 
