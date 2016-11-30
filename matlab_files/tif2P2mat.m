@@ -1,7 +1,21 @@
 function [outpath] = tif2P2mat(foldername,chan,numOrientations,base,regFiles)
+% Deinterleave and register .tif files in foldername. Files for the channel
+% specified are reordered and concatenated into full trials and stored in
+% results folder. 
+% Inputs:
+%   foldername: location of data (required)
+%   chan: channel to concatenate (required)
+%   numOrientations: number of orientations tested (optional, default: 8)
+%   base: 2D image to use as base for registration 
+%       (optional, default: Z projection of first image in folder)
+%   regFiles: cell containing files to use for registration
+% Outputs:
+%   outpath: folder where results are stored (subfolder of foldername
+%       called 'Results'
 
 % Make input parser at some point...
 
+%% Set defaults
 if ~exist('chan','var')
     error('Input chan not assigned.')
 end
@@ -21,7 +35,6 @@ if ~exist([path 'Results'],'dir')
     mkdir([path 'Results']);
 end
 
-% set defaults
 default_numOrientations = 8;
 if ~exist('numOrientations','var') || isempty(numOrientations)
     numOrientations = default_numOrientations;
@@ -36,7 +49,9 @@ t.close;
 
 warning('off','MATLAB:m_missing_variable_or_function');
 warning('off','MATLAB:UndefinedFunction');
+f = fopen([path 'scanimage.txt'],'w');
 for property = strsplit(tifinfo,'\n')
+    fprintf(f,'%s\n',property{1});
     try 
         eval([property{1} ';'])
     catch ME
@@ -46,7 +61,7 @@ for property = strsplit(tifinfo,'\n')
         end
     end
 end
-
+fclose(f);
 %% Use this to improve deinterleaving ... later
 channels = scanimage.SI4.channelsSave;
 colors = scanimage.SI4.channelsMergeColor(channels);
@@ -78,8 +93,6 @@ for i = 1:length(matfiles)
     Nend = str2double(Nend{end-1});
     N = Nend - Nstart + 1;
     [tmp,Nnew] = reorder2P(data,N);
-%     tmp = reorder2Pv2(data,numOrientations,N);
-%     tmp = tmp(1:floor(N/numOrientations)*numOrientations);
     if mod(Nnew,numOrientations)
         inds = N0:N0+N-1; % indices of errFiles to update
         inds = inds(end-mod(Nnew,numOrientations)+1:end);
@@ -89,7 +102,6 @@ for i = 1:length(matfiles)
     N = floor(Nnew/numOrientations)*numOrientations;
     correct = meshgrid((0:numOrientations-1),(1:floor(Nnew/numOrientations)));
     check = min(unique(sort(tmp(1:N)) == correct(:)));
-%     check = min(min(diff(sort(reshape(tmp(1:N),numOrientations,[])))))==1;
     if ~check
         error('Error in ordering for trial %d',i)
     end
@@ -99,32 +111,43 @@ end
 csvwrite([path 'Results' filesep basename '_order.txt'],cat(2,order{:}));
 [~,order] = sort(cat(2,order{:}));
 
-%% Deinterleave
+%% Deinterleave and Register
 % Assumes already deinterleaved if all color folders exist
 if max(arrayfun(@(i) ~exist([path colors{i}],'dir'),1:numel(colors)))
     display('Deinterleaving TIFF files')
     for file = tifFiles(logical(errFiles))'
         deinterleaveTif([path file.name],colors);
     end
+    % register
+    for i = 1:numel(colors)-1 % Do not register triggers
+        pathTmp = [path colors{i} filesep];
+        fTmp = dir([pathTmp '*.tif']);
+        if ~exist('base','var')
+            base = base_for_registration(...
+                readTifStack([pathTmp fTmp(1).name]));
+        end
+        fileNames = arrayfun(@(i) [pathTmp fTmp(i).name],(1:numel(fTmp)),...
+            'uniformoutput',false);
+        registerFiles(fileNames,base,regFiles);
+        % csvwrite([pathTmp 'base'],base);
+    end
+    clear pathTmp fTmp
 end
 
 %% Reshape file lists to reorder by trial
 tifpath = [path colors{chan} filesep];
 tifFiles = dir([tifpath '*.tif']);
 trigFiles = dir([path colors{end} filesep '*.tif']);
-trigFiles = reshape(trigFiles,...
-    numOrientations,[]);
+trigFiles = reshape(trigFiles,numOrientations,[]);
 tifFiles = reshape(tifFiles, numOrientations,[]);
 
 %%
 numTrials = size(order,2);
-imgfiles = tifFiles(order);
-trigfiles = trigFiles(order);
-if ~exist('base','var')
-    base = base_for_registration(...
-        readTifStack([tifpath imgfiles(1,1).name]));
-end
-%% Register
+adjOrder = meshgrid((0:numTrials-1)*numOrientations,(1:numOrientations));
+imgfiles = tifFiles(order+adjOrder);
+trigfiles = trigFiles(order+adjOrder);
+
+%% Reorder and Concatenate
 trig_col = colors{end};
 parfor i = 1:numTrials
     display(sprintf('Processing trial %d',i))
@@ -133,52 +156,21 @@ parfor i = 1:numTrials
     for j = 1:numOrientations
         display(sprintf('Starting trial %d, subtrial %d',i,j))
         file=imgfiles(j,i);
-        img{j} = readTifStack([tifpath filesep file.name]);
-        
+        img{j} = readTifStack([tifpath filesep file.name]);       
         trigs{j} = squeeze(readTifStack(...
             [path trig_col filesep trigfiles(j,i).name]));
+%         img{j} = img{j}(:,:,2:numel(trigs{j}));trigs{j} = trigs{j}(2:end);
         img{j} = img{j}(:,:,2:end);trigs{j} = trigs{j}(2:end);
         trigs{j} = trigs{j}>0;        
     end
-    img = cat(3,img{:});
+    outimg = cat(3,img{:});
     outtrigs = cat(1,trigs{:});
-    display(sprintf('Registering trial %d',i))
-    if isempty(regFiles)
-        [~,reg_info] = dft_register(img,base); % get registration data
-        write2file = true;
-    else
-        write2file = false;
-        try
-            reg_info = csvread(regFiles{i});
-        catch ME
-            error(['''regFiles'' should be a cell variable with paths to ',...
-                'registration files. Expecting %d elements'],numTrials); 
-        end
-    end
-    outimg = dft_register(img,[],reg_info); % apply registration data
     outname = [path 'Results' filesep basename ...
         '_trial' num2str(i,'%02d')];
-    display(sprintf('Saving results of trial %d',i));
     writeTif(outimg,outname);
     csvwrite([outname '_trigs.txt'],outtrigs);
-    if write2file; csvwrite([outname '_regInfo.txt'],reg_info); end
-%     if tot_chan > 2
-%         
-%         channels(chan) = []; channels = channels(1:end-1);
-%         for c = channels
-%             tifpath = [path colors{c} filesep];
-%             tifFiles = dir([tifpath '*.tif']);
-%             tifFiles = reshape(tifFiles, numOrientations,[]);
-%             imgfiles = tifFiles(order+1);
-%             img = cell(numOrientations);
-%             for j = 1:numOrientations
-%                 img{j} = readTifStack([tifpath filesep file.name]);
-%                 img{j} = dft_register(single(img{j}),[],reg_info{j}); 
-%             end
-            
-    
+
 end
-writeTif(base,[path 'Results' filesep 'base']);
 outpath = [path 'Results' filesep];
 display('Done')
     
