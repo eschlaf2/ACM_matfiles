@@ -1,5 +1,7 @@
 % function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options)
 
+runInPatches = true;
+
 if ~exist('savefile','var') || isempty(savefile)
     savefile = ['/projectnb/cruzmartinlab/emily/segProg' date()];
 end
@@ -22,92 +24,100 @@ if ~exist('foldername','var');
     foldername = ...
         '/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/';...
 end
-if ~exist('maxNeurons','var')||isempty(maxNeurons); maxNeurons = 30; end
+if ~exist('maxNeurons','var')||isempty(maxNeurons); maxNeurons = 100; end
 if ~exist('estNeuronSize','var')||isempty(estNeuronSize); estNeuronSize = 4; end
 
 %% Load preprocessed images
 display('Loading images')
 wd = pwd; cd(foldername); path = [pwd filesep]; cd(wd);
-trials = dir([path '*trial*.tif']);
-N = length(trials);
-if SMALLRUN; N = min(N,3); end
-im = cell(N,1); 
-trigs = im;
-trigFiles = dir([path '*trigs.txt']);
-for i = 1:N
-    filename = [path trials(i).name];
-    im{i} = single(readTifStack(filename));
-    trigs{i} = csvread([path trigFiles(i).name]);
+resultName = [path 'results.mat'];
+if SMALLRUN; resultName = [path 'resultsSmall.mat']; end
+if ~exist(resultName,'file')
+    trials = dir([path '*trial*.tif']);
+    N = length(trials);
+    if SMALLRUN; N = min(N,3); end
+    im = cell(N,1); 
+    trigs = im;
+    trigFiles = dir([path '*trigs.txt']);
+    for i = 1:N
+        filename = [path trials(i).name];
+        im{i} = single(readTifStack(filename));
+        trigs{i} = csvread([path trigFiles(i).name]);
+    end
+    % [d1,d2,~] = size(im{1});
+    % if SMALLRUN
+    %     for i = 1:N
+    %         im{i} = im{i}(d1/2-25+1:d1/2+25,1:50,:);
+    %     end
+    %     maxNeurons = 30;
+    %     d1 = 50; d2 = d1;
+    % end
+
+    %% Align all trials and subtrials to trigger onsets
+    display('Aligning')
+    [im,trigs] = alignTrigs(im,trigs,300,5);
+
+    % Memory map image
+    data = memmap_var(im,resultName,trigs,N);
+    clear im
+else
+    data = matfile(resultName,'Writable',true);
+    trigs = data.trigs;
+    N = data.N;
 end
-[d1,d2,~] = size(im{1});
-% if SMALLRUN
-%     for i = 1:N
-%         im{i} = im{i}(d1/2-25+1:d1/2+25,1:50,:);
-%     end
-%     maxNeurons = 30;
-%     d1 = 50; d2 = d1;
-% end
+[d1,d2,T] = size(data,'Y');
 
-%% Align all trials and subtrials to trigger onsets
-display('Aligning')
-[im,trigs] = alignTrigs(im,trigs,300);
-im = reshape(im,d1,d2,[],N);
-T = size(im,3);
-
-%% Calculate calcium signal
+%% Calculate calcium signal using patches
 display('Segmenting')
 
 % Set parameters
+patchSize = [128,128];
+patches = construct_patches([d1,d2],patchSize); % use defaults for overlap
+neurPerPatch = max(8,maxNeurons/(prod([d1 d2])/prod(patchSize)));
 tau = estNeuronSize;                   % std of gaussian kernel (size of neuron) - 4 is a good start 
 p = 2;                                % order of autoregressive system (p = 0 no dynamics, p=1 just decay, p = 2, both rise and decay)
 merge_thr = 0.8;                       % merging threshold
-% tsub = ceil(size(Y,3) / 5000);
-savemem = T>5000;
+% savemem = T>5000;
+savemem = true;
 
 if ~exist('options','var') || isempty(options)
     options = CNMFSetParms(...                      
         'd1',d1,'d2',d2,...                         % dimensions of datasets
-        'search_method','dilate','dist',8,...       % search locations when updating spatial components
+        'search_method','ellipse','dist',8,...       % search locations when updating spatial components
         'deconv_method','constrained_foopsi',...    % activity deconvolution method
-        'ssub', 1,...                            % spatial downsampling factor (default: 1)
-        'tsub', 1,...                            % temporal downsampling factor (default: 1)    
+        'ssub', 2,...                            % spatial downsampling factor (default: 1)
+        'tsub', 4,...                            % temporal downsampling factor (default: 1)    
         'fudge_factor',0.98,...                     % bias correction for AR coefficients
         'merge_thr',merge_thr,...                    % merging threshold
         'maxthr',0.1,...                           % threshold of max value below which values are discarded (default: 0.1)
         'medw',[3,3],...                % size of median filter (default: [3,3])
         'save_memory', savemem,...      % process data sequentially to save memory (default: 0)
+        'cluster_pixels',true,...
         'gSig',tau...
         );
     % Data pre-processing
 end
 
-SpatMap = cell(N,1); CaSignal = SpatMap; Spikes = SpatMap; corrIm = SpatMap;
-stats = SpatMap;
-
-for i = 1:N
-    [SpatMap{i}, CaSignal{i}, Spikes{i}, ~,~, corrIm{i}, stats{i},~] = ...
-        CaImSegmentation(im(:,:,:,i),maxNeurons,estNeuronSize);
+if runInPatches
+    [SpatMap, ~, CaSignal, ~, Spikes, stats, RESULTS, YrA] = ...
+        run_CNMF_patches(data,neurPerPatch,patches, estNeuronSize, p, options);
+    [SpatMap,CaSignal,Spikes,stats] = ...
+        order_ROIs(SpatMap,CaSignal,Spikes,stats); % order components
+%     contour_threshold = 0.95;                 % amount of energy used for each component to construct contour plot
+    figure;
+    corrIm = reshape(stats.sn,d1,d2);
+    [Coor,json_file] = plot_contours(SpatMap,corrIm,options,1); % contour plot of spatial footprints
+else
+    [SpatMap,CaSignal,Spikes,width,height,corrIm,stats,options] = ...
+        CaImSegmentation(data.Y,maxNeurons,estNeuronSize,options);
 end
 
-%% Testing
-% Merge components now...
-C = cat(1,CaSignal{:});
-A = cat(2,SpatMap{:});
-nr = size(A,2);
-thr = .3;
-C_corr = corr(full(C(1:nr,:)'));
-    FF1 = triu(C_corr)>= thr;                           % find graph of strongly correlated temporal components
-    
-    A_corr = triu(A(:,1:nr)'*A(:,1:nr));                
-    A_corr(1:nr+1:nr^2) = 0;
-    FF2 = A_corr > 0;                                   % find graph of overlapping spatial components
-    
-    FF3 = and(FF1,FF2); 
+%savejson('jmesh',json_file,'filename');        % optional save json file with component coordinates (requires matlab json library)
 
 try savefig(gcf,savefile); catch ME; end
 close all;
-try save(savefile); catch MEsave; savefile('segmentationOutput'); end
-return
+try save(savefile); catch MEsave; save('segmentationOutput'); end
+% return
 
 %% Save point (with SMALLRUN = true)
 % load segProgSmall.mat;
@@ -123,11 +133,11 @@ caMed = median(reshape(full(CaSignal),numRois,[],N),3);
 acor = nan(numRois,1); lag = nan(numRois,1);
 for i = 1:numRois
     [cc, loc] = xcorr(zscore(caMed(i,:)),zscore(trigs),LAGMAX+10);
-    cc = cc/xcorr(zscore(trigs),0);
+%     cc = cc/xcorr(zscore(trigs),0);
     [acor(i), mxind] = max((cc));
     lag(i) = loc(mxind);
 end
-vrInds = (lag > 0) & (lag < LAGMAX) & acor > 0.25;
+vrInds = (lag > 0) & (lag < LAGMAX); % & acor > 0.15;
 rois = (1:numRois);
 if sum(vrInds) > 10
     caMed = caMed(vrInds,:);
@@ -148,7 +158,13 @@ end
 display('Calculating activity for each orientation')
 % activity = reshape(caMed.*repmat(trigs',numRois,1),...
 %     numRois,[],numOrientations);
-activity = reshape(caMed(:,trigs==1),numRois,[],numOrientations);
+% activity = reshape(caMed(:,trigs==1),numRois,[],numOrientations);
+activity = reshape(CaSignal,117,[],N);
+actStd = std(activity,[],2);
+actStd = 3*repmat(actStd,1,size(activity,2),1);
+activity = double(activity > actStd);
+activity = sum(activity,3);
+activity = reshape(activity,117,[],numOrientations);
 % activity = activity - repmat(3.*std(activity,[],2),1,size(activity,2),1));
 % activity(activity<0) = 0;
 % activity(activity < repmat(3.*std(activity,[],2),1,size(activity,2),1)) = 0;
@@ -157,6 +173,13 @@ activity = squeeze(sum(activity,2));
 %     numRois,[],numOrientations),2));
 
 theta = linspace(0,2*pi,numOrientations+1)'; theta = theta(1:end-1);
+
+
+%% Get activity in terms of spikes
+spikeThr = quantile(Spikes(Spikes>0),.25);
+spAct = double(Spikes > spikeThr);
+spAct = reshape(spAct,size(spAct,1),[],N);
+spAct = sum(spAct,3);
 
 %% Get os and ds per Scanziani 2012
 display('Calculating OS and DS')
