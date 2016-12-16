@@ -5,3 +5,6 @@
 *.tif
 */*.gif
 output.*
+notes/*
+*.fig
+*/*.fig

@@ -14,12 +14,12 @@ rois = size(SpatMap,2);
 spatmask = SpatMap > 0;
 spatmask = reshape(full(spatmask),d1,d2,rois);
 spatnew = false(size(spatmask));
-for i=1:10
+for i=1:rois
     inds = find(spatmask(:,:,i));
     for ind = inds'
         [r,c] = ind2sub([d1,d2], ind);
-        dilateR = max(0,r-radius):min(r+radius,d1);
-        dilateC = max(0,c-radius):min(c+radius,d2);
+        dilateR = max(1,r-radius):min(r+radius,d1);
+        dilateC = max(1,c-radius):min(c+radius,d2);
         spatnew(dilateR,dilateC,i) = true;
     end
 end

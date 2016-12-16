@@ -1,4 +1,4 @@
-function [ax, data_stacked, yticks] = stackedTraces(data, spread, s)
+function [ax, data_stacked, yticks, spread] = stackedTraces(data, spread, s)
 % spreads data so it's easier to see when plotting. Inputs are data (2D
 % array stored columnwise), spread (amount to spread by; optional), s (a
 % style for the plots; optional).

@@ -1,21 +1,14 @@
-function [imgFixed,trigsFixed,Cfixed] = alignTrigs(im,trigs,C,maxlen,pad)
+function [actFixed,trigsFixed] = alignActivity(acty,trigs,maxlen,pad)
 % Align all trials and subtrials around trigger onset
+% trigs needs to be a cell variable with one cell per trial
 
 if ~exist('pad','var')||isempty(pad); pad = 0;end
-if ~exist('C','var')||isempty(C); C = trigs; end
 if ~exist('maxlen','var')||isempty(maxlen); maxlen = Inf; end
 
-if iscell(trigs);
-    numTrials = length(trigs);
-    trigsFull = cat(1,trigs{:});
-else 
-    numTrials = 1;
-    trigsFull = trigs;
-end
-if iscell(im); imgFull = cat(3,im{:}); else imgFull = im; end
-if iscell(C); Cfull = cat(1,C{:}); else Cfull = C; end
-
-[d1,d2,~] = size(imgFull);
+numTrials = length(trigs);
+if iscell(acty); actFull = cat(2,acty{:}); else actFull = acty; end
+[~,rois] = size(actFull);
+trigsFull = cat(1,trigs{:});
 trigsOn = find(diff(trigsFull) == 1); % triggers switch on
 trigsOff = find(diff(trigsFull) == -1); % triggers switch off
 minOff = min(trigsOn(:) - [0; trigsOff(:)]); % min length of 'off' interval
@@ -33,20 +26,13 @@ end
 numOrientations = length(trigsOn)/numTrials;
 trigsFixed = trigsFull(inds);
 trigsFixed = reshape(trigsFixed,[],numOrientations,numTrials);
-imgFixed = imgFull(:,:,inds);
-Cfixed = Cfull(inds,:);
-
-if pad > 0
-    rois = size(Cfull,2);
-    imgFixed = reshape(imgFixed,d1,d2,[],numOrientations,numTrials);
-    Cfixed = reshape(Cfixed,[],numOrientations,numTrials,rois);
-    trigsFixed = padarray(trigsFixed,[pad,0,0]);
-    imgFixed = padarray(imgFixed,[0,0,pad,0,0]);
-    Cfixed = padarray(Cfixed,[pad,0,0,0]);
-    imgFixed = reshape(imgFixed,d1,d2,[]);
-    Cfixed = reshape(Cfixed,[],rois);
-end
+trigsFixed = padarray(trigsFixed,[pad,0,0]);
 trigsFixed = reshape(trigsFixed(:,:,1),[],1);
-
+actFixed = actFull(inds,:);
+if pad > 0
+    actFixed = reshape(actFixed,[],numOrientations,numTrials,rois);
+    actFixed = padarray(actFixed,[pad,0,0,0]);
+    actFixed = reshape(actFixed,[],rois);
+end
 % imgFixed = reshape(imgFixed,d1,d2,[],numTrials);
 end
