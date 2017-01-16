@@ -8,43 +8,76 @@ function vrInds = filtervr(activity,trigs,method,maxlag,mindiff)
 %       - corr: looks for lag between trigs and activity. If the lag is
 %       between 0 and maxlag and the correlation is positive, the cell is
 %       considered VR
-%       - spiketime: looks for peaks at least 3 standard deviations away
+%       - spiketime: looks for peaks at least 2.5 standard deviations away
 %       from zero (activity in this case should be DFF). If a peak occurs
-%       within maxlag of stimulus onset for any stimulus, the cells is
+%       within maxlag of stimulus onset for any stimulus, the cell is
 %       considered VR.
-%       - diff: compares mean activity during presence and absense of
+%       - diff: compares mean activity during presence and absence of
 %       stimulus. If mean activity during stimulus is greater than mindiff
-%       times mean activity when stimulus is absent, then the cells
+%       times mean activity when stimulus is absent, then the cells are
 %       considered VR
+%       - ddt: looks for sharp increases in activity within maxlag of
+%       stimulus onset for any stimulus.
+%   maxlag: lag window (optional, default: 60)
+%   mindiff: minimum ratio of activity during stim to no stim (optional,
+%   default: 1.5);
 % Outputs:
 %   vrInds: a logical vector of length k indicating which ROIs are VR
 
 if ~exist('method','var')||isempty(method); method = 'diff'; end
 if ~exist('maxlag','var')||isempty(maxlag); maxlag = 60; end
-if ~exist('mindiff','var')||isempty(mindiff); mindiff = 1.25; end
+if ~exist('mindiff','var')||isempty(mindiff); mindiff = 1.5; end
+
+[T,k] = size(activity);
+st = sum(diff(trigs)>0);
+
+% find window for spikes in spiketime and ddt methods
+trigsR = reshape(trigs(:),[],st);
+offtime = sum(trigsR(:,1)==0);
+trigsR(offtime+1:offtime+maxlag,:) = 2;
 
 switch lower(method)
     case 'corr'
-        acor = nan(numRois,1); lag = nan(numRois,1);
-        for i = 1:numRois
+        acor = nan(k,1); lag = nan(k,1);
+        for i = 1:k
             [cc, loc] = xcorr((activity(:,i)),(trigs),maxlag+10,'unbiased');
             [acor(i), mxind] = max((cc));
             lag(i) = loc(mxind);
         end
-        vrInds = (lag > 0) & (lag < LAGMAX) & (acor > 0);
+        vrInds = (lag > 0) & (lag < maxlag) & (acor > 0);
     case 'spiketime'
-        actStd = repmat(std(activity),size(activity,1),1);
-        spikes = activity > 3*actStd;
-        spikes = spikes(trigs,:);
-        spikesR = reshape(spikes,[],sum(diff(trigs)>0),size(spikes,2));
-        vrInds = sum(squeeze(sum(spikesR(1:maxlag,:,:))))>0;
+        vrInds = false(k,1);
+        for i = 1:k
+            ti = activity(:,i);
+            if false
+                figure(2); findpeaks(ti,'minpeakheight',2.5*std(ti),...
+                    'minpeakprominence',std(ti));
+                x = 1:T;
+                hold on; plot(x(trigsR==2),ti(trigsR==2),'r.','linewidth',2); hold off;
+                title(num2str(i));
+                pause
+            end
+            [~, locs] = findpeaks(ti,'minpeakheight',2.5*std(ti),...
+                'minpeakprominence',std(ti));
+            vrInds(i) = sum(trigsR(locs)==2)>0;
+        end
+           
+    case 'ddt'
+        dt = floor(maxlag/2);
+        ddt = [zeros(dt,k); activity(dt+1:end,:) - activity(1:end-dt,:)];
+        stdDiff = repmat(std(ddt(dt+1:end,:)),T,1);
+        vrInds = any((ddt > 2.5*stdDiff) & (repmat(trigsR(:),1,k) == 2));
     otherwise
         if ~strcmpi(method,'diff')
-            warning('Method not recognized. Defaulting to method ''diff''.')
+            warning('Method ''%s'' not recognized. Defaulting to method ''diff''.',method)
         end
         % difference in activity
-        baseAct = activity(trigs==0,:);
-        stimAct = activity(trigs==1,:);
-        vrInds = (mindiff*mean(baseAct)) < mean(stimAct);
+        actR = reshape(activity,[],st,k);
+        baseAct = actR(trigs(1:T/st)==0,:,:);
+        stimAct = actR(trigs(1:T/st)==1,:,:);
+        vrInds = squeeze(sum(mean(stimAct) > mindiff*mean(baseAct),2))>0;
+%         baseAct = activity(trigs==0,:);
+%         stimAct = activity(trigs==1,:);
+%         vrInds = (mindiff*mean(baseAct)) < mean(stimAct);
 end
 vrInds = vrInds(:);

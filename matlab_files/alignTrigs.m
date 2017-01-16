@@ -1,4 +1,4 @@
-function [imgFixed,trigsFixed,Cfixed] = alignTrigs(im,trigs,C,maxlen,pad)
+function [imgFull,trigsFixed,Cfixed] = alignTrigs(im,trigs,C,maxlen,pad)
 % Align all trials and subtrials around trigger onset
 
 if ~exist('pad','var')||isempty(pad); pad = 0;end
@@ -14,8 +14,8 @@ else
 end
 if iscell(im); imgFull = cat(3,im{:}); else imgFull = im; end
 if iscell(C); Cfull = cat(1,C{:}); else Cfull = C; end
-
-[d1,d2,~] = size(imgFull);
+clear im C
+if ~isempty(imgFull); [d1,d2,~] = size(imgFull); end
 trigsOn = find(diff(trigsFull) == 1); % triggers switch on
 trigsOff = find(diff(trigsFull) == -1); % triggers switch off
 minOff = min(trigsOn(:) - [0; trigsOff(:)]); % min length of 'off' interval
@@ -33,20 +33,22 @@ end
 numOrientations = length(trigsOn)/numTrials;
 trigsFixed = trigsFull(inds);
 trigsFixed = reshape(trigsFixed,[],numOrientations,numTrials);
-imgFixed = imgFull(:,:,inds);
+if ~isempty(imgFull); imgFull(:,:,~inds) =[]; end
+% imgFixed = imgFull(:,:,inds);
 Cfixed = Cfull(inds,:);
 
 if pad > 0
     rois = size(Cfull,2);
-    imgFixed = reshape(imgFixed,d1,d2,[],numOrientations,numTrials);
+    if ~isempty(imgFull);
+        imgFull = reshape(imgFull,d1,d2,[],numOrientations,numTrials);
+        imgFull = padarray(imgFull,[0,0,pad,0,0]);
+        imgFull = reshape(imgFull,d1,d2,[]);
+    end
     Cfixed = reshape(Cfixed,[],numOrientations,numTrials,rois);
     trigsFixed = padarray(trigsFixed,[pad,0,0]);
-    imgFixed = padarray(imgFixed,[0,0,pad,0,0]);
     Cfixed = padarray(Cfixed,[pad,0,0,0]);
-    imgFixed = reshape(imgFixed,d1,d2,[]);
     Cfixed = reshape(Cfixed,[],rois);
 end
 trigsFixed = reshape(trigsFixed(:,:,1),[],1);
 
-% imgFixed = reshape(imgFixed,d1,d2,[],numTrials);
 end

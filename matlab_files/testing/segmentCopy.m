@@ -1,10 +1,10 @@
 % function [] = segmentCa2P(foldername,maxNeurons,estNeuronSize,savefile,options,roifile,paninskidff)
-if 0
-foldername = '/projectnb/cruzmartinlab/lab_data/WWY_080116_3/axons/Results/';
+
+foldername = '/projectnb/cruzmartinlab/lab_data/WWY_080116_3/cell-bodies-1Hz/Results/';
 LAGMAX = 60;
 paninskidff = true;
-savefile = 'notes/WWY_080116_3_axons/result';
-printfigs = 'notes/WWY_080116_3_axons/';
+savefile = 'notes/WWY_080116_3_cb1Hz/result';
+printfigs = 'notes/WWY_080116_3_cb1Hz/';
 roifile = [];
 
 %% Load preprocessed images
@@ -12,20 +12,19 @@ if true % ~exist(resultName,'file')
     [trigs,dFF,N,spatmap,corrIm] = ...
         processCaImStack(foldername,roifile,paninskidff,...
         'maxNeurons',300,...
-        'estNeuronSize',4,... % 4 is good for axons; 8 for cell bodies (for WWY_080116_3 data)
+        'estNeuronSize',8,... % 4 is good for axons; 8 for cell bodies (for WWY_080116_3 data)
         'smallrun',false,...
         'dilation',1,...
         'conn_comp',false,... % set to false for axons
         'refine',false,... 
-        'require_overlap',false,... % set to false for axons
-        'init_method','sparse_NMF',... % 'greedy' for somas, 'sparse_NMF' for axons
+        'require_overlap',true,... % set to false for axons
+        'init_method','greedy',... % 'greedy' for somas, 'sparse_NMF' for axons
         'ARp',2);
     
 else
     load(resultName);
 end
 
-end
 %% Save point (with SMALLRUN = true)
 % load segProgSmall.mat;
 
@@ -42,7 +41,6 @@ activitySum = squeeze(sum(fix(floor(dffR./repmat(std(dffR),t,1,1))-.1),2));
 
 % merge
 options.fast_merge = true;
-% options.require_overlap = false;
 options.deconv_method = 'none';
 options.d1 = d1; options.d2 = d2;
 [spatmapM, dffMM,~,~,~,activitySumM] = merge_components([],double(spatmap),[],dffM',[],[],activitySum',options);
@@ -90,20 +88,13 @@ x = sort(os(vrInds));
 y = linspace(0,1,sum(vrInds));
 % y = linspace(0,1,numRois);
 figure(11); 
-plot(x,y,'bo'); hold on
-pd = fitdist(x(:),'normal');
-cdfx = linspace(0,1,100);
-plot(cdfx,cdf(pd,cdfx),'b','linewidth',2);
+scatter(x,y,'b'); hold on
 title('OS')
 
-h(2) = figure(12); hold on;% DS cdf
+h(2) = figure(12); % DS cdf
 x = sort(ds(vrInds));
 figure(12); 
-plot(x,y,'ro'); 
-hold on;
-pd = fitdist(x(:),'normal');
-cdfx = linspace(0,1,100);
-plot(cdfx,cdf(pd,cdfx),'r','linewidth',2);
+scatter(x,y,'b'); 
 title('DS')
 
 if sum(vrInds) > 0
@@ -177,7 +168,7 @@ try
 end
 
 try % angle hist
-    h(8) = figure(18); hold on;
+    h(8) = figure(18);
     angl = angle(sum(activityOr.*repmat(exp(1j*theta),1,size(activityOr,2))));
     ax = rose(angl(vrInds & (ds(:)>.5))); set(ax,'linewidth',2);
     title('Direction preference of DS cells')
@@ -188,20 +179,20 @@ end
 
 try % tuning curve (Atallah, 2013)
     ds_thr = 0.5;
-    h(9) = figure(19); hold on
+    h(9) = figure(19);
     actOrS = activityOr;
     for i = 1:length(prefInd)
         actOrS(:,i) = circshift(actOrS(:,i),[2-prefInd(i),0]);
     end
-    plot(actOrS(:,vrInds & ds(:)>ds_thr),'color',[1,.5,.5]); hold on;
+    plot(actOrS(:,vrInds & ds(:)>ds_thr),'color',[.5,.5,1]); hold on;
     actOrSM = median(actOrS(:,vrInds & ds(:)>ds_thr),2);
-    gaussEqn = 'a*exp(-((x-2)/c)^2) + aa*exp(-((x-6)/c)^2) ';
-    startPoints = [actOrSM(2) actOrSM(6) .35];
+    gaussEqn = 'a*exp(-((x-2)/c)^2) + aa*exp(-((x-6)/c)^2) + d';
+    startPoints = [actOrSM(2) actOrSM(6) .5 0];
     x = repmat((1:8)',1,sum(vrInds & ds(:)>ds_thr)); y = actOrS(:,vrInds&ds(:)>ds_thr);
     f = fit(x(:),y(:),gaussEqn,'Start',startPoints);
 %     f = fit((1:8)',actOrSM,gaussEqn,'Start',startPoints);
     x = linspace(1,8,100);
-    plot(x,f(x),'r','linewidth',2); hold off;
+    plot(x,f(x),'k','linewidth',2); hold off;
     title('Tuning of DS cells')
 %     plot(mean(actOrS(:,vrInds),2),'k','linewidth',2); hold off;
 catch MEtuning
@@ -210,7 +201,6 @@ end
 
 
 %% Save results
-if 0
 display('Saving')
 titles = {'osCdf';'dsCdf'; 'polarPlots';'caVr';'caNotVr';'contourVr';...
     'contourNotVr';'rose';'tuning'};
@@ -222,4 +212,3 @@ clear h; close all;
 save(savefile)
 display('Success!!')
 % end
-end

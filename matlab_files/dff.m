@@ -38,3 +38,7 @@ fluo(inds) = baseline(inds);
 R = (fluo - baseline)./baseline;
 w = exp(-(1:tau0)/tau0);
 output = filter(w,sum(w),R);
+
+% baseline drop
+output = output - repmat(quantile(output,.08),T,1);
+output(output<0) = 0;

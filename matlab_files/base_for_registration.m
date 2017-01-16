@@ -1,4 +1,4 @@
-function base = base_for_registration(img,p,v)
+function base = base_for_registration(img,params,v)
 
 if ~exist('v','var')
     v = false;
@@ -10,15 +10,15 @@ end
 msg = ['''params'' should be of the form [int,bool] where int is ',...
         'the number of times to smooth the image and bool determines ',...
         'whether or not to normalize.'];
-if ~exist('params','var') || isempty(p)
+if ~exist('params','var') || isempty(params)
     SMOOTH = 1;
     NORM = true;
-elseif numel(p)~=2
+elseif numel(params)~=2
     error(msg)
 else
     try 
-        SMOOTH = int(p(1));
-        NORM = logical(p(2));
+        SMOOTH = int(params(1));
+        NORM = logical(params(2));
     catch ME
         error(msg);
     end

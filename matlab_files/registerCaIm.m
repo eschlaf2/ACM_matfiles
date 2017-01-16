@@ -1,4 +1,4 @@
-function [outpath] = tif2P2mat(foldername,chan,numOrientations,base,regFiles)
+function [outpath] = registerCaIm(foldername,chan,numOrientations,base,regFiles)
 % Deinterleave and register .tif files in foldername. Files for the channel
 % specified are reordered and concatenated into full trials and stored in
 % results folder. 
@@ -30,9 +30,14 @@ cd(foldername);
 path = [pwd filesep];
 cd(wd);
 addpath(genpath(foldername));
+if ~ischar(chan)
+result_folder = sprintf('Results_%d',chan);
+else
+result_folder = ['Results_' chan];
+end
 
-if ~exist([path 'Results'],'dir')
-    mkdir([path 'Results']);
+if ~exist([path result_folder],'dir')
+    mkdir([path result_folder]);
 end
 
 default_numOrientations = 8;
@@ -108,7 +113,7 @@ for i = 1:length(matfiles)
     order{i} = reshape(tmp(1:N), numOrientations,[]);
 end
 
-csvwrite([path 'Results' filesep basename '_order.txt'],cat(2,order{:}));
+csvwrite([path result_folder filesep basename '_order.txt'],cat(2,order{:}));
 [~,order] = sort(cat(2,order{:}));
 
 %% Deinterleave and Register
@@ -165,16 +170,12 @@ parfor i = 1:numTrials
     end
     outimg = cat(3,img{:});
     outtrigs = cat(1,trigs{:});
-    outname = [path 'Results' filesep basename ...
+    outname = [path result_folder filesep basename ...
         '_trial' num2str(i,'%02d')];
     writeTif(outimg,outname);
     csvwrite([outname '_trigs.txt'],outtrigs);
 
 end
-outpath = [path 'Results' filesep];
+outpath = [path result_folder filesep];
 display('Done')
-    
-
-
-
 

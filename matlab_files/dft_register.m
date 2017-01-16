@@ -1,4 +1,4 @@
-function [img_reg,output,base] = dft_register(img,base,output,v)
+function [img_reg,reg_info,base] = dft_register(img,base,reg_info,v)
 % img can be a tif file or a 3D array variable
 
 if ~exist('v','var'); v = true; else v = logical(v); end
@@ -16,23 +16,17 @@ if ~(or(isa(img,'single'),isa(img,'double')))
     img = single(img);
 end
 
-% % minimize salt and pepper noise
-% [d1,d2,numsamp] = size(img);
-% img = arrayfun(@(x) medfilt2(img(:,:,x)),(1:numsamp),...
-%     'uniformoutput',false);
-% img = cat(3,img{:});
-
 % fix oddballs
 display('Fixing bad frames.');
 img = stackfix(img);
 
 nt = size(img,3);
-if exist('output','var')
-    [d1,d2] = size(output);
+if exist('reg_info','var')
+    [d1,d2] = size(reg_info);
     if d1 == 4
         0;
     elseif d2==4
-        output = output.';
+        reg_info = reg_info.';
     else 
         error('''output'' should be a 4xN matrix.');
     end
@@ -40,9 +34,9 @@ if exist('output','var')
     Nr = ifftshift(-fix(nr/2):ceil(nr/2)-1);
     Nc = ifftshift(-fix(nc/2):ceil(nc/2)-1);
     [Nc,Nr] = meshgrid(Nc,Nr);
-    diffphase = output(2,:);
-    row_shift = output(3,:);
-    col_shift = output(4,:);
+    diffphase = reg_info(2,:);
+    row_shift = reg_info(3,:);
+    col_shift = reg_info(4,:);
     parfor i = 1:nt
         imgtmp = fft2(img(:,:,i)).*...
             exp(1i*2*pi*(-row_shift(i)*Nr/nr-col_shift(i)*Nc/nc));
@@ -55,7 +49,6 @@ if exist('output','var')
     return 
 end
     
-
 % do this separately
 % sig_orig = img; % Register fixed original as well as smoothed and normed
 % Smooth with gaussian
@@ -87,7 +80,7 @@ if ~exist('base','var') || isempty(base)
     base = base_for_registration(img,[0,false]);
 end
 
-output = zeros(4,nt);
+reg_info = zeros(4,nt);
 img_reg = zeros(size(img),'single');
 display('Starting registration')
 % orig_reg = zeros(size(sig_orig));
@@ -109,7 +102,7 @@ parfor i  = 1:nt
     if v && mod(i,10) == 0
         display(sprintf('(%d/%d)',i,nt));
     end
-    output(:,i) = outtmp;
+    reg_info(:,i) = outtmp;
 end
 display('Done')
 % plot(output(1,:))
